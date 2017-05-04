@@ -1,5 +1,10 @@
 # Squake
+
 A multi-source Squirrel compiler
+
+## License
+
+GNU General Public License
 
 ## Purpose
 
@@ -14,3 +19,7 @@ The squakefile should have each file on a separate line. The first line is the n
 ## To Do
 
 Make a proper makefile for the compiler itself, since I don't know how to do this.
+
+## Notes
+
+The cli.nut file is an example that can be used to test out Squake for yourself.
