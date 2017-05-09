@@ -35,9 +35,40 @@ bool fileExists(const char* filename){
 	return false;
 };
 
+bool mergeFile(const char* a, const char* b){
+	ifstream src(a, std::ios::in|std::ios::binary);
+	if(!src.good()){
+		xyPrint(0, "Could not open %s!", a);
+		return 0;
+	};
+
+	ofstream des(b, std::ios::app|std::ios::binary);
+	if(!des.good()){
+		xyPrint(0, "Could not open %s!", b);
+		return 0;
+	};
+
+	des << src.rdbuf();
+
+	/*if(!src.eof()){
+		xyPrint(0, "Could not read from %s!", a);
+		return 0;
+	};
+
+	if(!des.eof()){
+		xyPrint(0, "Could not read from %s!", b);
+		return 0;
+	};*/
+
+	src.close();
+	des.close();
+
+	return 1;
+};
+
 int main(int argc, char** args){
 	//Open the log file
-	remove("log.txt");
+	remove("squake.log");
 	gvLog = fopen("squake.log", "w");
 
 	//If there is no squakefile around, end the program
@@ -72,22 +103,34 @@ int main(int argc, char** args){
     };
 	sq_setcompilererrorhandler(v, compileErrorHandler);
 
-	//Compile each source nut
+	//Clean old files
+	remove("temp.sq");
+	remove(nuts[0].c_str());
+	
+	//Compile each file
+	remove(nuts[0].c_str()); //Delete original output file
 	for(int i = 1; i < nuts.size(); i++){
+		//Compile the source
 		xyPrint(0, "Compiling %s...", nuts[i].c_str());
 		if (SQ_FAILED(sqstd_loadfile(v, nuts[i].c_str(), SQTrue))) {
 			xyPrint(0, "Could not compile!");
 			sq_close(v);
 			return 0;
 		};
-	};
 
-	//Output compiled code
-	if (SQ_FAILED(sqstd_writeclosuretofile(v, nuts[0].c_str()))) {
-        xyPrint(0, "Could not serialize closure!");
-		sq_close(v);
-		return 0;
-    }
+		//Export to temporary bytecode
+		if (SQ_FAILED(sqstd_writeclosuretofile(v, "temp.sq"))) {
+			xyPrint(0, "Could not serialize closure!");
+			sq_close(v);
+			return 0;
+		};
+
+		//Merge bytecode into output file
+		if(!mergeFile("temp.sq", nuts[0].c_str())){
+			xyPrint(0, "Error merging files!");
+			return 0;
+		};
+	};
 
 	//Close out
 	xyPrint(0, "Compilation completed. Closing Squirrel.");
