@@ -10,6 +10,7 @@
 using namespace std;
 
 FILE *gvLog;
+SQFILE output;
 
 void xyPrint(HSQUIRRELVM v, const SQChar *s, ...){
 	va_list args;
@@ -35,35 +36,9 @@ bool fileExists(const char* filename){
 	return false;
 };
 
-bool mergeFile(const char* a, const char* b){
-	ifstream src(a, std::ios::in|std::ios::binary);
-	if(!src.good()){
-		xyPrint(0, "Could not open %s!", a);
-		return 0;
-	};
 
-	ofstream des(b, std::ios::app|std::ios::binary);
-	if(!des.good()){
-		xyPrint(0, "Could not open %s!", b);
-		return 0;
-	};
-
-	des << src.rdbuf();
-
-	/*if(!src.eof()){
-		xyPrint(0, "Could not read from %s!", a);
-		return 0;
-	};
-
-	if(!des.eof()){
-		xyPrint(0, "Could not read from %s!", b);
-		return 0;
-	};*/
-
-	src.close();
-	des.close();
-
-	return 1;
+SQInteger fileWrite(SQUserPointer file,SQUserPointer p,SQInteger size){
+    return sqstd_fwrite(p,1,size,(SQFILE)file);  //which basically is fwrite on a FILE* as of stdio.h
 };
 
 int main(int argc, char** args){
@@ -95,6 +70,16 @@ int main(int argc, char** args){
 		i++;
 	};
 
+	//Make sure the first argument is not a .nut file
+	if(nuts[0].substr(nuts[0].find_last_of(".")) == ".nut"){
+		xyPrint(0, "Output file is a source file. Aborting operation.");
+		return 0;
+	} else xyPrint(0, "Compile format: %s", nuts[0].substr(nuts[0].find_last_of(".")).c_str());
+
+	//Open the output file
+	remove(nuts[0].c_str());
+	output = sqstd_fopen(nuts[0].c_str(), _SC("wb"));
+
 	//Open Squirrel
 	HSQUIRRELVM v = sq_open(1024);
     if (!v){
@@ -108,7 +93,6 @@ int main(int argc, char** args){
 	remove(nuts[0].c_str());
 	
 	//Compile each file
-	remove(nuts[0].c_str()); //Delete original output file
 	for(int i = 1; i < nuts.size(); i++){
 		//Compile the source
 		xyPrint(0, "Compiling %s...", nuts[i].c_str());
@@ -119,15 +103,9 @@ int main(int argc, char** args){
 		};
 
 		//Export to temporary bytecode
-		if (SQ_FAILED(sqstd_writeclosuretofile(v, "temp.sq"))) {
+		if (SQ_FAILED(sq_writeclosure(v, fileWrite, output))) {
 			xyPrint(0, "Could not serialize closure!");
 			sq_close(v);
-			return 0;
-		};
-
-		//Merge bytecode into output file
-		if(!mergeFile("temp.sq", nuts[0].c_str())){
-			xyPrint(0, "Error merging files!");
 			return 0;
 		};
 	};
@@ -136,5 +114,6 @@ int main(int argc, char** args){
 	xyPrint(0, "Compilation completed. Closing Squirrel.");
 	sq_close(v);
 	fclose(gvLog);
+	sqstd_fclose(output);
 	return 0;
 };
